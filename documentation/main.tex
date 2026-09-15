@@ -29,7 +29,7 @@
   linkcolor=NSSBlue,
   urlcolor=NSSBlue,
   citecolor=NSSBlue,
-  pdftitle={NSS Front-end - Arquitetura V1 e Escopo de Demonstracao},
+  pdftitle={NSS Front-end - Arquitetura V1 e Navegacao Geografica},
   pdfauthor={Nucleo de Situacao de Saude - UENF}
 }
 
@@ -72,8 +72,8 @@
 \lstset{style=code}
 
 \title{\textbf{Nucleo de Situacao de Saude -- UENF}\\[0.4cm]
-\Large Front-end: Arquitetura V1 e Escopo Minimo de Demonstracao}
-\author{Documentacao inicial para implementacao incremental}
+\Large Front-end: Arquitetura V1, Navegacao Geografica e Escopo de Demonstracao}
+\author{Documentacao para implementacao incremental}
 \date{15 de setembro de 2026}
 
 \begin{document}
@@ -82,7 +82,7 @@
 \vfill
 
 \begin{decision}
-Esta versao prioriza uma demonstracao funcional e visualmente coerente no curto prazo, sem romper a arquitetura definitiva do NSS. O front-end conversa somente com a API Java. Enquanto os endpoints epidemiologicos ainda nao estiverem disponiveis, a interface pode operar com dados mockados por meio da mesma abstracao de acesso a dados.
+Esta V1 prioriza uma demonstracao visual forte e funcional, mantendo a arquitetura definitiva do NSS. O mapa deixa de ser um elemento opcional e passa a ser a principal forma de navegacao da interface. O front-end conversa somente com a API Java quando estiver em modo real; enquanto os endpoints epidemiologicos ainda nao estiverem disponiveis, a mesma interface opera com dados mockados pelo mesmo contrato tipado.
 \end{decision}
 
 \vfill
@@ -92,21 +92,23 @@ Esta versao prioriza uma demonstracao funcional e visualmente coerente no curto 
 
 \section{Objetivo desta V1}
 
-Este documento define a primeira versao arquitetural do repositorio \texttt{nss-front-end}. O objetivo imediato e permitir que o Codex implemente uma interface demonstravel com escopo pequeno, mantendo uma estrutura que possa evoluir sem retrabalho desnecessario.
+Este documento define a primeira versao arquitetural do repositorio \texttt{nss-front-end}. O objetivo imediato e permitir uma demonstracao apresentavel em curto prazo, com escopo controlado, responsividade real e navegacao geografica progressiva, sem criar uma implementacao descartavel.
 
 A V1 deve entregar uma unica dashboard epidemiologica contendo:
 
 \begin{itemize}[leftmargin=*]
     \item cabecalho institucional do NSS/UENF;
+    \item mapa vetorial interativo como elemento central;
+    \item navegacao geografica progressiva Brasil $\rightarrow$ Sudeste $\rightarrow$ Rio de Janeiro;
     \item filtros por doenca, ano e mes;
-    \item indicadores resumidos do periodo selecionado;
-    \item ranking de municipios por numero de casos;
-    \item area de visualizacao geografica/heatmap preparada para os dados municipais;
-    \item estados de carregamento, erro e ausencia de dados;
-    \item suporte a dados mockados e a API real por uma mesma interface.
+    \item painel contextual com selecao atual, total do recorte quando semanticamente valido e legenda;
+    \item ranking dos municipios com dados no nivel do Rio de Janeiro;
+    \item estados de carregamento, erro, ausencia de dados e ausencia de cobertura;
+    \item suporte a mock e API real por uma mesma abstracao de acesso a dados;
+    \item comportamento mobile-first e adaptacao para telas maiores.
 \end{itemize}
 
-Nao fazem parte desta primeira entrega: autenticacao visual, administracao de usuarios, dashboards multiplas, configuracoes administrativas, analises demograficas detalhadas, SSR, internacionalizacao ou um sistema de design complexo.
+Nao fazem parte desta primeira entrega: autenticacao visual, administracao de usuarios, dashboards multiplas, filtros demograficos, cartografia de ruas, geocodificacao, GPS, WebSocket, SSR, exportacoes ou um sistema de design complexo.
 
 \section{Arquitetura do NSS e limite do front-end}
 
@@ -120,7 +122,7 @@ A arquitetura de referencia do NSS separa quatro componentes:
 \end{enumerate}
 
 \begin{decision}
-O front-end nao acessa PostgreSQL e nao chama o Python. Toda consulta da aplicacao deve passar pela API Java. O PostgreSQL e um contrato de integracao entre Python e Java, nao entre banco e navegador.
+O front-end nao acessa PostgreSQL e nao chama o pipeline Python/PySUS. Toda consulta epidemiologica da aplicacao deve passar pela API Java. A geometria cartografica local em GeoJSON e um recurso estatico do front-end e nao representa acesso ao pipeline epidemiologico.
 \end{decision}
 
 O fluxo desejado e:
@@ -138,99 +140,32 @@ O projeto Java analisado ja possui elementos importantes para ocupar o papel de 
 
 \subsection{O que ja existe}
 
-A base atual utiliza:
+A base atual utiliza Java 21, Spring Boot 4.1.1, Spring Web MVC, Spring Data JPA, Bean Validation, PostgreSQL, Flyway, Spring Security, DTOs, MapStruct, Lombok, Dockerfile e Docker Compose.
+
+A entidade atualmente implementada e \texttt{User}, com CRUD HTTP em \texttt{/NSS/users}. Ainda nao existem os recursos epidemiologicos que o front-end desta V1 devera consumir.
+
+\subsection{O que ainda falta para o papel arquitetural definitivo}
+
+Ainda precisam ser implementados no backend Java:
 
 \begin{itemize}[leftmargin=*]
-    \item Java 21;
-    \item Spring Boot 4.1.1;
-    \item Spring Web MVC;
-    \item Spring Data JPA;
-    \item Bean Validation;
-    \item PostgreSQL;
-    \item dependencia do Flyway;
-    \item Spring Security;
-    \item Argon2 para codificacao de senha;
-    \item DTOs de request/response;
-    \item MapStruct;
-    \item Dockerfile multi-stage;
-    \item Docker Compose com PostgreSQL 16.
-\end{itemize}
-
-A entidade implementada e \texttt{User}, mapeada para a tabela \texttt{users}, com os campos \texttt{id}, \texttt{nome}, \texttt{email}, \texttt{password}, \texttt{matricula} e \texttt{cargo}.
-
-Existe CRUD HTTP em \texttt{/NSS/users}:
-
-\begin{tabularx}{\textwidth}{@{}L{2.2cm}L{4.2cm}Y@{}}
-\toprule
-\textbf{Metodo} & \textbf{Rota} & \textbf{Situacao} \\
-\midrule
-POST & \texttt{/NSS/users} & cria usuario e codifica senha \\
-GET & \texttt{/NSS/users} & lista todos os usuarios \\
-GET & \texttt{/NSS/users/\{id\}} & busca usuario por id \\
-PUT & \texttt{/NSS/users/\{id\}} & existe, mas atualmente atualiza apenas a senha \\
-DELETE & \texttt{/NSS/users/\{id\}} & remove usuario por id \\
-\bottomrule
-\end{tabularx}
-
-\subsection{O que ainda falta para ser o componente Java descrito na arquitetura}
-
-Ainda nao foram encontrados no projeto analisado:
-
-\begin{itemize}[leftmargin=*]
-    \item entidades e repositories para os agregados epidemiologicos;
-    \item controllers/endpoints para doencas, resumo ou heatmap;
-    \item migrations Flyway para criar o schema;
-    \item fluxo de login, emissao/validacao de token e autorizacao por papel;
+    \item entidades e repositories para agregados epidemiologicos;
+    \item endpoints para doencas e agregados municipais;
+    \item migrations Flyway para o schema;
     \item contrato padronizado de erros;
-    \item paginacao para recursos que possam crescer;
     \item configuracao CORS para o front-end;
-    \item especificacao OpenAPI do contrato publico;
-    \item testes de integracao do banco e da API epidemiologica.
+    \item especificacao OpenAPI;
+    \item testes de integracao do banco e da API epidemiologica;
+    \item autenticacao e autorizacao definitivas em fase posterior.
 \end{itemize}
-
-Portanto, a resposta arquitetural e: \textbf{sim, ele parece ser o embriao do componente Java definido em \texttt{nss-deployment}, mas ainda nao cumpre a maior parte das responsabilidades previstas para esse componente}.
-
-\subsection{Problemas tecnicos que devem ser corrigidos no backend}
 
 \begin{warningbox}
-O arquivo \texttt{src/main/resources/application.yml} contem, no estado analisado, uma copia do Docker Compose em vez de configuracao Spring. O \texttt{compose.yaml} da raiz e o lugar correto para a definicao dos servicos. O \texttt{application.yml} precisa conter propriedades da aplicacao, datasource, JPA/Flyway, seguranca e demais configuracoes do Spring.
+O arquivo \texttt{src/main/resources/application.yml} do projeto Java precisa ser revisado: no estado analisado, ele contem definicoes equivalentes a Docker Compose em vez de propriedades Spring. A definicao dos servicos pertence ao \texttt{compose.yaml}; o \texttt{application.yml} deve conter configuracoes da aplicacao.
 \end{warningbox}
-
-Tambem devem ser revisados:
-
-\begin{itemize}[leftmargin=*]
-    \item o \texttt{PUT} de usuario, que ignora nome, email, cargo e matricula;
-    \item o processamento de anotacoes do MapStruct no Maven, pois o \texttt{maven-compiler-plugin} explicita apenas Lombok em \texttt{annotationProcessorPaths};
-    \item a dependencia exigida pelo encoder Argon2 em runtime;
-    \item o comportamento default do Spring Security. Ainda falta uma configuracao explicita de rotas publicas e protegidas;
-    \item tratamento de duplicidade e de \texttt{RuntimeException} via \texttt{@ControllerAdvice};
-    \item migrations Flyway, pois a dependencia existe, mas nao ha scripts de migracao no projeto analisado.
-\end{itemize}
 
 \section{Contrato de dados PostgreSQL para a V1}
 
-Esta secao define o schema minimo esperado depois da refatoracao do pipeline Python. Ele e deliberadamente pequeno para permitir integracao rapida.
-
-\subsection{Tabela existente: users}
-
-O Java ja modela a tabela abaixo conceitualmente:
-
-\begin{tabularx}{\textwidth}{@{}L{3.2cm}L{3.1cm}Y@{}}
-\toprule
-\textbf{Campo} & \textbf{Tipo sugerido} & \textbf{Regra} \\
-\midrule
-id & BIGSERIAL & chave primaria \\
-nome & VARCHAR(100) & obrigatorio \\
-email & VARCHAR(254) & obrigatorio e unico \\
-password & VARCHAR(255) & hash da senha; nunca retornar no DTO \\
-matricula & VARCHAR(11) & obrigatoria, numerica e unica \\
-cargo & VARCHAR(30) & obrigatorio \\
-\bottomrule
-\end{tabularx}
-
-\subsection{Tabela proposta: \texttt{sinan\_case\_aggregate}}
-
-O Gold atual do pipeline ja produz os campos essenciais \texttt{disease}, \texttt{year}, \texttt{month}, \texttt{cd\_uf}, \texttt{nm\_uf}, \texttt{cd\_mun}, \texttt{nm\_mun} e \texttt{cases\_total}. A V1 do PostgreSQL deve preservar exatamente esse nivel de agregacao, sem adicionar dimensoes opcionais por enquanto.
+A tabela epidemiologica proposta para a primeira integracao e deliberadamente pequena e espelha o Gold mensal que o pipeline atual ja produz.
 
 \begin{lstlisting}[language=SQL]
 CREATE TABLE sinan_case_aggregate (
@@ -256,18 +191,14 @@ ON sinan_case_aggregate (disease, year, month, cd_uf);
 \end{lstlisting}
 
 \begin{decision}
-Na V1, o pipeline deve persistir apenas o agregado geografico mensal, sem agrupar por sexo, classificacao final, evolucao, semana epidemiologica ou ano de nascimento. Essas dimensoes ja sao candidatas existentes no pipeline, mas devem entrar somente em uma evolucao do contrato, pois alteram a chave e a granularidade da tabela.
+A V1 utiliza apenas casos mensais agregados por municipio. Sexo, classificacao final, evolucao, semana epidemiologica, idade e outras dimensoes ficam fora desta primeira demonstracao.
 \end{decision}
 
-\subsection{Correspondencia com o pipeline atual}
-
-O pipeline atual possui suporte a colunas agrupaveis adicionais como \texttt{SEM\_NOT}, \texttt{CLASSI\_FIN}, \texttt{EVOLUCAO}, \texttt{CS\_SEXO} e \texttt{ANO\_NASC}. Para a demonstracao, o front-end nao deve depender delas.
-
-A lista de municipios codificada no Gold atual esta limitada a quatro municipios do Rio de Janeiro: Campos dos Goytacazes, Sao Joao da Barra, Itaperuna e Macae. Isso e suficiente para o prototipo, mas deve ser tratado como limitacao temporaria do pipeline, nao como regra definitiva do sistema.
+A cobertura de dados de demonstracao fica limitada a quatro municipios do Rio de Janeiro: Campos dos Goytacazes, Sao Joao da Barra, Itaperuna e Macae.
 
 \section{Contrato minimo da API Java para o front-end}
 
-A API definitiva ainda precisa ser implementada. Para evitar acoplamento com o CRUD de usuarios e para permitir evolucao, a V1 deve usar prefixo versionado \texttt{/api/v1}.
+A API V1 deve usar prefixo versionado \texttt{/api/v1}.
 
 \subsection{Health check}
 
@@ -291,8 +222,6 @@ GET /api/v1/diseases
 }
 \end{lstlisting}
 
-Na V1, a lista pode ser derivada dos valores distintos de \texttt{disease} na tabela de agregados. Nao e necessario criar uma tabela de catalogo de doencas apenas para a demonstracao.
-
 \subsection{Agregado municipal}
 
 \begin{lstlisting}
@@ -315,7 +244,7 @@ GET /api/v1/epidemiology/municipalities?disease=DENG&year=2026&month=1
 }
 \end{lstlisting}
 
-Esse unico endpoint ja permite ao front calcular total de casos, municipio com maior numero de notificacoes, ranking e intensidade do heatmap. Endpoints adicionais devem ser criados somente quando houver uma necessidade real da interface.
+Esse endpoint permite ao front-end calcular ranking municipal, total do recorte municipal disponivel e intensidade visual dos municipios cobertos.
 
 \section{Arquitetura do front-end}
 
@@ -328,13 +257,14 @@ Para a V1, utilizar:
     \item TypeScript com \texttt{strict} habilitado;
     \item Vite;
     \item Tailwind CSS;
-    \item TanStack Query para estado de servidor, cache, loading e retry;
-    \item Fetch API nativa como cliente HTTP.
+    \item TanStack Query para estado de servidor;
+    \item Fetch API nativa como cliente HTTP;
+    \item React Simple Maps para renderizacao SVG das geometrias GeoJSON.
 \end{itemize}
 
-Evitar nesta fase Redux, Zustand, Next.js, bibliotecas de formularios, design systems extensos e outras dependencias sem necessidade demonstrada.
+Evitar Redux, Zustand, Next.js, bibliotecas de formulario, bibliotecas de mapas baseadas em tiles e demais dependencias sem necessidade demonstrada.
 
-\subsection{Estrutura de pastas}
+\subsection{Estrutura sugerida}
 
 \begin{lstlisting}
 src/
@@ -348,9 +278,20 @@ src/
 |   `-- dashboard/
 |       |-- DashboardPage.tsx
 |       |-- components/
+|       |   |-- GeographicMap/
+|       |   |   |-- GeographicMap.tsx
+|       |   |   |-- RegionLayer.tsx
+|       |   |   |-- StateLayer.tsx
+|       |   |   |-- MunicipalityLayer.tsx
+|       |   |   |-- MapTooltip.tsx
+|       |   |   `-- MapLegend.tsx
+|       |   |-- GeographyBreadcrumb.tsx
+|       |   |-- FilterPanel.tsx
+|       |   |-- FilterDrawer.tsx
+|       |   `-- MunicipalityRanking.tsx
 |       `-- hooks/
-|-- components/
-|   `-- ui/
+|           |-- useMapNavigation.ts
+|           `-- useEpidemiologyQuery.ts
 |-- data/
 |   |-- dataSource.ts
 |   |-- apiDataSource.ts
@@ -373,7 +314,7 @@ interface EpidemiologyDataSource {
   getMunicipalityCases(filters: {
     disease: string;
     year: number;
-    month?: number;
+    month: number;
   }): Promise<MunicipalityCasesResponse>;
 }
 \end{lstlisting}
@@ -385,48 +326,352 @@ VITE_API_BASE_URL=http://localhost:8080
 VITE_USE_MOCKS=true
 \end{lstlisting}
 
-Quando a API Java estiver pronta, basta mudar \texttt{VITE\_USE\_MOCKS=false}. Os componentes da dashboard nao devem ser alterados para essa troca.
+A troca para a API real nao deve exigir alteracao nos componentes visuais.
+
+\section{Arquitetura cartografica da V1}
+
+\subsection{Decisao: GeoJSON vetorial em vez de PNGs em grid}
+
+A cartografia deve ser gerada previamente por Python usando \texttt{geobr}/GeoPandas, mas persistida no front-end como GeoJSON simplificado. Nao utilizar imagens PNG individuais remontadas em grid como base da interacao.
+
+Motivos:
+
+\begin{itemize}[leftmargin=*]
+    \item SVG/GeoJSON preserva as geometrias e permite hitboxes reais;
+    \item hover, focus, clique e estilos ficam associados ao poligono correto;
+    \item a responsividade nao depende de alinhar imagens rasterizadas;
+    \item cores de heatmap podem ser aplicadas dinamicamente;
+    \item a mesma geometria funciona em diferentes resolucoes de tela;
+    \item acessibilidade por teclado e mais simples de implementar;
+    \item nao e necessario gerar milhares de imagens de municipios.
+\end{itemize}
+
+\subsection{Arquivos cartograficos necessarios}
+
+A V1 precisa somente destes recursos estaticos:
+
+\begin{lstlisting}
+public/maps/
+|-- brazil-regions.geojson
+|-- southeast-states.geojson
+`-- rj-municipalities.geojson
+\end{lstlisting}
+
+O primeiro deve conter as cinco regioes brasileiras; o segundo, somente ES, MG, RJ e SP; o terceiro, os municipios do estado do Rio de Janeiro.
+
+\subsection{Script de geracao}
+
+Criar um script de desenvolvimento, por exemplo \texttt{scripts/generate\_maps.py}, responsavel por:
+
+\begin{enumerate}[leftmargin=*]
+    \item ler as regioes com \texttt{geobr.read\_region};
+    \item ler os estados e filtrar o Sudeste;
+    \item ler os municipios do RJ com \texttt{geobr.read\_municipality(code\_muni="RJ")};
+    \item manter os codigos oficiais necessários em \texttt{properties};
+    \item simplificar a geometria somente se necessario para reduzir tamanho, sem deformacao perceptivel;
+    \item exportar GeoJSON valido em \texttt{public/maps};
+    \item nao depender de Python em runtime no navegador.
+\end{enumerate}
+
+\begin{decision}
+O Python desta secao e apenas uma ferramenta de build cartografico. Ele nao substitui o pipeline PySUS e nao entra no caminho de consulta da aplicacao.
+\end{decision}
+
+\section{Modelo de navegacao geografica}
+
+O mapa deve funcionar como uma navegacao hierarquica de tres niveis na V1:
+
+\begin{lstlisting}
+BRASIL
+  |- Norte
+  |- Nordeste
+  |- Centro-Oeste
+  |- Sul
+  `- Sudeste ----------> SUDESTE
+                           |- ES
+                           |- MG
+                           |- SP
+                           `- RJ -------> RIO DE JANEIRO
+                                          |- Campos dos Goytacazes
+                                          |- Sao Joao da Barra
+                                          |- Itaperuna
+                                          `- Macae
+\end{lstlisting}
+
+\subsection{Nivel 1: Brasil por regioes}
+
+No carregamento inicial, exibir as cinco regioes brasileiras.
+
+Todas devem possuir hover, focus e selecao visual. Entretanto, somente \textbf{Sudeste} permite drill-down na V1. As demais regioes podem ser selecionadas para mostrar nome e estado de cobertura, mas nao devem navegar para outro nivel.
+
+Nao apresentar \texttt{0 casos} para regioes sem cobertura. Utilizar texto como \texttt{Dados ainda nao disponiveis nesta V1}.
+
+\subsection{Nivel 2: estados do Sudeste}
+
+Ao ativar Sudeste, o mapa deve mudar para ES, MG, RJ e SP. Todos os estados devem ser identificaveis por hover/focus/toque.
+
+Somente o \textbf{Rio de Janeiro} permite drill-down na V1. SP, MG e ES devem informar ausencia de cobertura desta demonstracao, sem inventar total zero.
+
+\subsection{Nivel 3: municipios do Rio de Janeiro}
+
+Ao ativar RJ, renderizar a malha municipal do estado para preservar a forma geografica completa.
+
+Todos os municipios podem aparecer graficamente, mas somente quatro possuem dados interativos epidemiologicos nesta V1:
+
+\begin{itemize}[leftmargin=*]
+    \item Campos dos Goytacazes;
+    \item Sao Joao da Barra;
+    \item Itaperuna;
+    \item Macae.
+\end{itemize}
+
+Os municipios sem cobertura devem permanecer visualmente neutros e nao podem ser interpretados como municipios com zero casos.
+
+\subsection{Breadcrumb e retorno}
+
+Exibir breadcrumb do nivel atual:
+
+\begin{lstlisting}
+Brasil
+Brasil > Sudeste
+Brasil > Sudeste > Rio de Janeiro
+\end{lstlisting}
+
+Os niveis anteriores devem ser clicaveis. Tambem deve existir uma acao clara \texttt{Voltar} em contexto apropriado.
+
+\section{Estado de navegacao e estado epidemiologico}
+
+Separar explicitamente tres conceitos no codigo.
+
+\subsection{Nivel do mapa}
+
+\begin{lstlisting}
+type MapLevel =
+  | "BRAZIL_REGIONS"
+  | "SOUTHEAST_STATES"
+  | "RJ_MUNICIPALITIES";
+\end{lstlisting}
+
+\subsection{Geografia selecionada}
+
+\begin{lstlisting}
+type GeographySelection = {
+  level: "region" | "state" | "municipality";
+  code: string;
+  name: string;
+};
+\end{lstlisting}
+
+\subsection{Filtros epidemiologicos}
+
+\begin{lstlisting}
+type EpidemiologyFilters = {
+  disease: string;
+  year: number;
+  month: number;
+};
+\end{lstlisting}
+
+\begin{decision}
+\texttt{mapLevel}, \texttt{selectedGeography} e \texttt{epidemiologyFilters} nao devem ser fundidos em um unico estado monolitico. Essa separacao reduz acoplamento e simplifica a evolucao da navegacao.
+\end{decision}
+
+\section{Join entre geometria e dados epidemiologicos}
+
+GeoJSON responde \textit{onde} a unidade geografica esta e qual seu codigo. A API responde \textit{quantos casos} existem no filtro selecionado.
+
+A ligacao deve usar codigo oficial, nunca nome textual como chave principal.
+
+\begin{lstlisting}
+GeoJSON feature
+  properties.code_muni = "3301009"
+            |
+            v
+API item
+  cdMun = "3301009"
+  casesTotal = 120
+\end{lstlisting}
+
+A geometria nao deve armazenar valores epidemiologicos fixos.
+
+\section{Cobertura e semantica de dados}
+
+\subsection{Diferenciar zero de ausencia de dados}
+
+A interface deve distinguir visual e semanticamente:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{sem cobertura}: nao ha dados disponiveis nesta V1;
+    \item \textbf{zero casos}: existe cobertura para a unidade e o total calculado e zero;
+    \item \textbf{valor positivo}: existe cobertura e ha casos registrados no recorte.
+\end{itemize}
+
+Cinza neutro deve representar \textbf{sem cobertura}; a menor intensidade da escala epidemiologica deve representar zero ou baixa incidencia conforme a regra visual escolhida.
+
+\subsection{Agregacoes incompletas}
+
+\begin{warningbox}
+O front-end nao deve somar os quatro municipios cobertos e apresentar esse valor como total do estado do Rio de Janeiro, da regiao Sudeste ou do Brasil. Esses seriam totais incompletos e semanticamente incorretos.
+\end{warningbox}
+
+Na V1, niveis sem cobertura completa servem primordialmente como navegacao. Totais agregados so podem ser apresentados quando o backend declarar cobertura suficiente para a unidade geografica.
+
+\subsection{Metadados de demonstracao}
+
+O mock pode declarar capacidades de drill-down separadamente da disponibilidade de dados:
+
+\begin{lstlisting}
+const demoCoverage = {
+  drilldownEnabled: {
+    regions: ["SE"],
+    states: ["RJ"],
+  },
+  caseDataAvailableForMunicipalities: [
+    "3301009",
+    "3305000",
+    "3302205",
+    "3302403",
+  ],
+};
+\end{lstlisting}
+
+\section{Especificacao visual e responsividade}
+
+\subsection{Principio mobile-first}
+
+A interface deve ser implementada primeiro para viewport estreita e depois expandida progressivamente. Nao criar um desktop fixo para depois apenas empilhar elementos no celular.
+
+\subsection{Mobile}
+
+Em telas pequenas:
+
+\begin{itemize}[leftmargin=*]
+    \item o mapa ocupa \textbf{100\% da largura disponivel};
+    \item o painel de filtros e informacoes fica oculto por padrao;
+    \item uma acao visivel abre o painel como Drawer/Sheet lateral ou sobreposto;
+    \item o Drawer deve fechar por botao, toque fora e tecla \texttt{Escape};
+    \item ao abrir, o foco deve ir para o painel e permanecer controlado enquanto estiver ativo;
+    \item nao depender de hover para nenhuma informacao essencial;
+    \item toque em uma geografia deve equivaler a clique/selecionar.
+\end{itemize}
+
+Representacao conceitual:
+
+\begin{lstlisting}
++------------------------------+
+| NSS / UENF                   |
++------------------------------+
+| breadcrumb                   |
++------------------------------+
+|                              |
+|            MAPA              |
+|           100%               |
+|                              |
++------------------------------+
+| [Filtros e informacoes]      |
++------------------------------+
+\end{lstlisting}
+
+\subsection{Telas medias e grandes}
+
+Quando houver largura suficiente, trocar para duas colunas:
+
+\begin{lstlisting}
++--------------------------------------+------------------+
+|                                      |                  |
+|                MAPA                  | Filtros          |
+|              ~ 70%                   | Selecao atual    |
+|                                      | Informacoes      |
+|                                      | Legenda          |
+|                                      |                  |
++--------------------------------------+------------------+
+\end{lstlisting}
+
+A proporcao inicial deve ser aproximadamente 70/30, mas o breakpoint e a distribuicao podem ser ajustados apos teste visual. Nao assumir obrigatoriamente \texttt{md}; testar \texttt{md} e \texttt{lg} e usar o primeiro ponto em que a leitura do painel e do mapa permaneça confortavel.
+
+O painel lateral deve preferir \texttt{position: sticky} dentro de CSS Grid/Flex, e nao \texttt{position: fixed}, para permanecer integrado ao fluxo da pagina.
+
+\subsection{Conteudo do painel}
+
+O painel deve conter, no maximo:
+
+\begin{enumerate}[leftmargin=*]
+    \item filtro de doenca;
+    \item filtro de ano;
+    \item filtro de mes;
+    \item nome da geografia selecionada;
+    \item informacao de cobertura;
+    \item total apenas quando semanticamente valido;
+    \item legenda do mapa;
+    \item indicador discreto \texttt{DEMO} quando estiver usando mock.
+\end{enumerate}
+
+\section{Interacao: mouse, toque e teclado}
+
+Toda geografia interativa deve ter comportamentos equivalentes para diferentes dispositivos.
+
+\begin{tabularx}{\textwidth}{@{}L{3.5cm}Y@{}}
+\toprule
+\textbf{Entrada} & \textbf{Comportamento esperado} \\
+\midrule
+Mouse hover & realcar poligono e mostrar nome/informacao curta \\
+Focus por teclado & mesmo destaque essencial do hover \\
+Clique & selecionar geografia e, quando habilitado, fazer drill-down \\
+Toque & selecionar; se a unidade permitir drill-down, executar navegacao de forma previsivel \\
+Enter/Space & equivalente a ativacao por clique para geografia focada \\
+Escape & fechar Drawer/Sheet quando aberto \\
+\bottomrule
+\end{tabularx}
+
+Nao esconder informacao indispensavel exclusivamente em tooltip de hover.
+
+\section{Visualizacao epidemiologica no mapa}
+
+A intensidade de cor deve ser derivada de \texttt{casesTotal}. A V1 pode utilizar uma escala discreta simples, desde que a legenda explique seu significado.
+
+Regras obrigatorias:
+
+\begin{itemize}[leftmargin=*]
+    \item municipio sem cobertura: cinza neutro;
+    \item municipio com cobertura e zero casos: estilo valido distinto de sem cobertura;
+    \item municipio com valor positivo: intensidade crescente;
+    \item estado/regiao sem cobertura completa: nao receber cor que sugira total epidemiologico completo;
+    \item contraste suficiente entre estados normal, hover/focus e selecionado.
+\end{itemize}
+
+Nao e necessario implementar uma escala epidemiologica sofisticada ou normalizada por populacao nesta V1.
+
+\section{Zoom e transicoes}
+
+A V1 nao precisa calcular zoom GIS sofisticado nem animar bounds dinamicamente. Podem ser utilizados presets de visualizacao para os tres niveis.
+
+\begin{lstlisting}
+const MAP_VIEWS = {
+  brazil: { center: [-54, -15], zoom: 1 },
+  southeast: { center: [-45, -20], zoom: 2.2 },
+  rioDeJaneiro: { center: [-42.5, -22.2], zoom: 5 },
+};
+\end{lstlisting}
+
+Os valores finais devem ser ajustados visualmente. Transicoes curtas podem ser usadas, mas nao sao criterio de aceite se colocarem o prazo em risco.
 
 \section{Tela unica da V1}
 
-\subsection{Layout}
-
-A pagina inicial deve conter, nesta ordem:
+A pagina deve seguir esta hierarquia visual:
 
 \begin{enumerate}[leftmargin=*]
-    \item \textbf{Header}: nome do NSS, referencia a UENF e indicador discreto de fonte de dados (\texttt{DEMO} quando mockado);
-    \item \textbf{Filtros}: doenca, ano e mes;
-    \item \textbf{KPIs}: total de casos, municipio com maior numero de casos e quantidade de municipios com registros;
-    \item \textbf{Visualizacao geografica}: painel de heatmap/mapa municipal;
-    \item \textbf{Ranking}: tabela com municipio e total de casos.
+    \item Header institucional;
+    \item breadcrumb geografico;
+    \item area principal contendo mapa + painel responsivo;
+    \item ranking municipal abaixo, exibido quando fizer sentido no nivel do RJ;
+    \item estados de loading, error, empty e sem cobertura integrados ao fluxo.
 \end{enumerate}
 
-\subsection{Mapa na entrega de curto prazo}
-
-O mapa nao deve bloquear a V1. A prioridade e a dashboard funcionar de ponta a ponta.
-
-Ordem de preferencia:
-
-\begin{enumerate}[leftmargin=*]
-    \item se houver GeoJSON municipal confiavel ja disponivel, usar mapa simples com intensidade por \texttt{casesTotal};
-    \item caso contrario, implementar um painel visual de heatmap/ranking com os quatro municipios e deixar a interface do componente preparada para receber geometria depois;
-    \item nao gastar a entrega com cartografia completa do Brasil.
-\end{enumerate}
-
-\subsection{Estados obrigatorios}
-
-Toda consulta deve possuir:
-
-\begin{itemize}[leftmargin=*]
-    \item \textbf{loading}: skeleton ou placeholder sem layout shift importante;
-    \item \textbf{error}: mensagem curta e botao para tentar novamente;
-    \item \textbf{empty}: mensagem informando que nao ha dados para os filtros;
-    \item \textbf{success}: renderizacao dos indicadores e resultados.
-\end{itemize}
+Os antigos cards KPI no topo deixam de ser obrigatorios. Informacoes resumidas devem preferencialmente aparecer no painel contextual para preservar o mapa como elemento principal.
 
 \section{Mock da demonstracao}
 
-O mock deve usar o mesmo formato da futura resposta Java. Um conjunto pequeno e suficiente:
+O mock deve usar o mesmo formato da futura resposta Java.
 
 \begin{lstlisting}
 DENG / 2026 / janeiro
@@ -436,46 +681,64 @@ DENG / 2026 / janeiro
 - Sao Joao da Barra: 18
 \end{lstlisting}
 
-Os valores sao apenas dados sinteticos de demonstracao e nunca devem ser apresentados como estatistica epidemiologica real.
+Os valores sao sinteticos e devem ser identificados como demonstracao. Nunca apresenta-los como estatistica epidemiologica real.
+
+\section{Estados obrigatorios da interface}
+
+Toda consulta epidemiologica deve tratar:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{loading}: skeleton/placeholder sem deslocamento importante de layout;
+    \item \textbf{error}: mensagem curta e acao de tentar novamente;
+    \item \textbf{empty}: existe cobertura, mas nao ha registros para o filtro;
+    \item \textbf{no coverage}: a V1 nao possui cobertura para a unidade geografica;
+    \item \textbf{success}: renderizacao normal de dados.
+\end{itemize}
 
 \section{Escopo explicitamente fora da V1}
 
-Para proteger a entrega de curto prazo, o Codex nao deve implementar agora:
+Para proteger a entrega, nao implementar agora:
 
 \begin{itemize}[leftmargin=*]
     \item login, cadastro, recuperacao de senha ou RBAC;
     \item tela CRUD de usuarios;
     \item consumo direto do FastAPI antigo;
     \item acesso direto ao PostgreSQL;
-    \item filtros por sexo, classificacao, evolucao ou idade;
+    \item filtros por sexo, classificacao, evolucao, idade ou semana epidemiologica;
+    \item todos os municipios do Brasil como areas epidemiologicas ativas;
+    \item drill-down fora de Sudeste e RJ;
+    \item mapas de ruas, satelite ou tiles;
     \item exportacao PDF/CSV;
     \item notificacoes em tempo real;
     \item WebSocket;
     \item SSR/Next.js;
     \item dashboard builder;
-    \item cobertura de testes extensa.
+    \item cobertura de testes extensa;
+    \item animacao cartografica sofisticada.
 \end{itemize}
 
 \section{Ordem de implementacao recomendada ao Codex}
 
 \begin{enumerate}[leftmargin=*]
     \item inicializar Vite + React + TypeScript;
-    \item configurar Tailwind e a estrutura de pastas;
-    \item criar tipos TypeScript do contrato epidemiologico;
+    \item configurar Tailwind e TanStack Query;
+    \item criar tipos epidemiologicos e estados de navegacao geografica;
     \item criar \texttt{EpidemiologyDataSource};
     \item implementar \texttt{mockDataSource};
-    \item configurar TanStack Query;
-    \item construir filtros e KPIs;
-    \item construir ranking municipal;
-    \item construir o painel geografico sem bloquear a entrega;
+    \item criar \texttt{scripts/generate\_maps.py};
+    \item gerar e versionar os tres GeoJSONs da V1;
+    \item implementar o nivel Brasil/regioes;
+    \item implementar drill-down do Sudeste;
+    \item implementar drill-down do RJ com malha municipal;
+    \item fazer join por codigo IBGE entre GeoJSON e mock;
+    \item implementar breadcrumb e navegacao de retorno;
+    \item implementar painel lateral desktop e Drawer mobile reutilizando o mesmo conteudo de filtros;
+    \item implementar legenda e estados sem cobertura;
+    \item implementar ranking dos quatro municipios;
     \item implementar \texttt{apiDataSource};
-    \item adicionar estados loading/error/empty;
-    \item validar \texttt{npm run build} e \texttt{npm run lint}.
+    \item validar responsividade, teclado, toque e mouse;
+    \item executar \texttt{npm run build} e \texttt{npm run lint}.
 \end{enumerate}
-
-\begin{decision}
-A V1 e considerada pronta para demonstracao mesmo que a API Java epidemiologica ainda nao esteja concluida, desde que a UI funcione com mock, o contrato esteja tipado e a troca para a API real dependa apenas de configuracao e da implementacao do adapter HTTP.
-\end{decision}
 
 \section{Criterios de aceite da V1}
 
@@ -485,12 +748,24 @@ A V1 e considerada pronta para demonstracao mesmo que a API Java epidemiologica 
 \midrule
 Build & \texttt{npm run build} termina com sucesso \\
 Lint & sem erros bloqueadores \\
-Responsividade & dashboard utilizavel em desktop e celular \\
-Filtros & alteram os dados exibidos \\
+Mobile-first & mapa ocupa 100\% da largura e painel abre como Drawer/Sheet \\
+Desktop & mapa e painel aparecem em duas colunas em breakpoint adequado \\
+Mapa Brasil & cinco regioes renderizadas e identificaveis \\
+Drill-down regional & somente Sudeste avanca para estados \\
+Mapa Sudeste & ES, MG, RJ e SP renderizados \\
+Drill-down estadual & somente RJ avanca para municipios \\
+Mapa RJ & malha municipal visivel \\
+Dados municipais & quatro municipios cobertos recebem dados/heatmap \\
+Sem cobertura & nunca e apresentado como zero casos \\
+Breadcrumb & permite entender e retornar entre os niveis \\
+Interacao & mouse, toque e teclado possuem caminhos equivalentes \\
+Filtros & doenca, ano e mes alteram os dados exibidos \\
+Join & geometria e dados ligados por codigo oficial, nao por nome \\
 Dados & mock e API obedecem aos mesmos tipos \\
-Estados & loading, error, empty e success existem \\
+Estados & loading, error, empty, no coverage e success existem \\
 Acoplamento & nenhum componente visual chama \texttt{fetch} diretamente \\
-Arquitetura & navegador conversa apenas com Java quando o modo real estiver ativo \\
+Arquitetura & navegador conversa apenas com Java no modo real \\
+Cartografia & GeoJSON local; nenhum PNG-grid como mecanismo principal \\
 Entrega & uma unica dashboard coerente e apresentavel \\
 \bottomrule
 \end{tabularx}
@@ -500,20 +775,23 @@ Entrega & uma unica dashboard coerente e apresentavel \\
 Depois da demonstracao, a sequencia recomendada e:
 
 \begin{enumerate}[leftmargin=*]
-    \item finalizar a persistencia Gold do Python no PostgreSQL;
-    \item implementar no Java repository/service/controller epidemiologico;
-    \item adicionar OpenAPI e estabilizar os DTOs;
+    \item finalizar persistencia Gold do Python no PostgreSQL;
+    \item implementar repository/service/controller epidemiologico no Java;
+    \item adicionar OpenAPI e estabilizar DTOs;
     \item integrar o front com a API Java real;
-    \item implementar autenticacao e autorizacao no Java e, somente depois, a experiencia de login no front;
-    \item expandir dimensoes epidemiologicas apenas com contrato SQL e API versionados.
+    \item ampliar gradualmente cobertura geografica e declarar explicitamente unidades completas;
+    \item implementar autenticacao/autorizacao no Java e somente depois experiencia de login no front;
+    \item expandir dimensoes epidemiologicas com contrato SQL e API versionados.
 \end{enumerate}
 
 \section{Resumo executivo}
 
-O Java atual e uma base valida para o backend principal, pois ja adota Spring Boot, JPA, PostgreSQL, seguranca e organizacao em camadas. Entretanto, no estado analisado, ele ainda e majoritariamente um CRUD de usuarios e nao oferece a API epidemiologica prevista pela arquitetura do NSS.
+A V1 do \texttt{nss-front-end} e uma dashboard cartografica mobile-first. Seu fluxo principal e Brasil por regioes, drill-down para Sudeste, drill-down para Rio de Janeiro e visualizacao dos quatro municipios atualmente cobertos pelo prototipo. O mapa e requisito central, nao opcional.
 
-Para a demonstracao imediata, o front-end deve ser independente desse atraso: React + TypeScript + Vite + Tailwind + TanStack Query, uma unica dashboard e um adapter de dados intercambiavel entre mock e Java. O schema SQL minimo proposto espelha o Gold que o pipeline ja produz e evita introduzir dimensoes adicionais antes de existir necessidade de interface.
+A cartografia deve ser vetorial, gerada por Python/\texttt{geobr} em desenvolvimento e versionada como GeoJSON. React Simple Maps renderiza as geometrias como SVG e permite interacao sem depender de mapas de ruas ou servicos externos. O estado geografico permanece separado dos filtros epidemiologicos, e os dados sao associados a geometria por codigos oficiais.
 
-Essa abordagem entrega algo visivel rapidamente e, ao mesmo tempo, mantem a direcao arquitetural descrita no \texttt{nss-deployment}.
+A interface distingue explicitamente \textit{zero casos} de \textit{sem cobertura}, evitando apresentar agregacoes incompletas como totais estaduais, regionais ou nacionais. Em telas pequenas, o mapa ocupa toda a largura e os filtros aparecem em Drawer; em telas maiores, mapa e painel ficam lado a lado com proporcao aproximada 70/30 ajustada por teste visual.
+
+Essa abordagem mantem o escopo enxuto para a demonstracao e, ao mesmo tempo, cria uma base coerente para evoluir a cobertura geografica e conectar a API Java definitiva.
 
 \end{document}
