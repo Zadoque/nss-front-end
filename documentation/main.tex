@@ -1,0 +1,519 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazilian]{babel}
+\usepackage{lmodern}
+\usepackage[a4paper,margin=2.3cm]{geometry}
+\usepackage{microtype}
+\usepackage{parskip}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage[most]{tcolorbox}
+
+\definecolor{NSSBlue}{HTML}{174A7E}
+\definecolor{NSSLight}{HTML}{EEF5FB}
+\definecolor{NSSGreen}{HTML}{2E7D5A}
+\definecolor{NSSGray}{HTML}{5F6B76}
+\definecolor{NSSRed}{HTML}{9A3412}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=NSSBlue,
+  urlcolor=NSSBlue,
+  citecolor=NSSBlue,
+  pdftitle={NSS Front-end - Arquitetura V1 e Escopo de Demonstracao},
+  pdfauthor={Nucleo de Situacao de Saude - UENF}
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{NSS Front-end}
+\rhead{Arquitetura V1}
+\cfoot{\thepage\ de \pageref{LastPage}}
+\setlength{\headheight}{15pt}
+
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\newtcolorbox{decision}[1][]{
+  colback=NSSLight,
+  colframe=NSSBlue,
+  title=Decisao arquitetural,
+  fonttitle=\bfseries,
+  #1
+}
+
+\newtcolorbox{warningbox}[1][]{
+  colback=orange!7,
+  colframe=NSSRed,
+  title=Atencao,
+  fonttitle=\bfseries,
+  #1
+}
+
+\lstdefinestyle{code}{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  columns=fullflexible,
+  frame=single,
+  rulecolor=\color{black!20},
+  backgroundcolor=\color{black!2},
+  showstringspaces=false,
+  tabsize=2
+}
+\lstset{style=code}
+
+\title{\textbf{Nucleo de Situacao de Saude -- UENF}\\[0.4cm]
+\Large Front-end: Arquitetura V1 e Escopo Minimo de Demonstracao}
+\author{Documentacao inicial para implementacao incremental}
+\date{15 de setembro de 2026}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+\vfill
+
+\begin{decision}
+Esta versao prioriza uma demonstracao funcional e visualmente coerente no curto prazo, sem romper a arquitetura definitiva do NSS. O front-end conversa somente com a API Java. Enquanto os endpoints epidemiologicos ainda nao estiverem disponiveis, a interface pode operar com dados mockados por meio da mesma abstracao de acesso a dados.
+\end{decision}
+
+\vfill
+\newpage
+\tableofcontents
+\newpage
+
+\section{Objetivo desta V1}
+
+Este documento define a primeira versao arquitetural do repositorio \texttt{nss-front-end}. O objetivo imediato e permitir que o Codex implemente uma interface demonstravel com escopo pequeno, mantendo uma estrutura que possa evoluir sem retrabalho desnecessario.
+
+A V1 deve entregar uma unica dashboard epidemiologica contendo:
+
+\begin{itemize}[leftmargin=*]
+    \item cabecalho institucional do NSS/UENF;
+    \item filtros por doenca, ano e mes;
+    \item indicadores resumidos do periodo selecionado;
+    \item ranking de municipios por numero de casos;
+    \item area de visualizacao geografica/heatmap preparada para os dados municipais;
+    \item estados de carregamento, erro e ausencia de dados;
+    \item suporte a dados mockados e a API real por uma mesma interface.
+\end{itemize}
+
+Nao fazem parte desta primeira entrega: autenticacao visual, administracao de usuarios, dashboards multiplas, configuracoes administrativas, analises demograficas detalhadas, SSR, internacionalizacao ou um sistema de design complexo.
+
+\section{Arquitetura do NSS e limite do front-end}
+
+A arquitetura de referencia do NSS separa quatro componentes:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Front-end}: React + TypeScript, responsavel pela interface e visualizacoes;
+    \item \textbf{Java / Spring Boot}: API principal, autenticacao, autorizacao, regras de negocio e leitura do PostgreSQL;
+    \item \textbf{PostgreSQL}: persistencia dos dados consolidados e dados da aplicacao;
+    \item \textbf{Python / PySUS}: pipeline de ingestao e transformacao do SINAN, fora do caminho sincrono de consulta do usuario.
+\end{enumerate}
+
+\begin{decision}
+O front-end nao acessa PostgreSQL e nao chama o Python. Toda consulta da aplicacao deve passar pela API Java. O PostgreSQL e um contrato de integracao entre Python e Java, nao entre banco e navegador.
+\end{decision}
+
+O fluxo desejado e:
+
+\begin{lstlisting}
+Usuario -> Front-end React -> API Java -> PostgreSQL
+                                      ^
+                                      |
+                              Pipeline Python/PySUS
+\end{lstlisting}
+
+\section{Estado atual do componente Java/Spring Boot}
+
+O projeto Java analisado ja possui elementos importantes para ocupar o papel de backend principal, mas ainda representa apenas o inicio dessa responsabilidade.
+
+\subsection{O que ja existe}
+
+A base atual utiliza:
+
+\begin{itemize}[leftmargin=*]
+    \item Java 21;
+    \item Spring Boot 4.1.1;
+    \item Spring Web MVC;
+    \item Spring Data JPA;
+    \item Bean Validation;
+    \item PostgreSQL;
+    \item dependencia do Flyway;
+    \item Spring Security;
+    \item Argon2 para codificacao de senha;
+    \item DTOs de request/response;
+    \item MapStruct;
+    \item Dockerfile multi-stage;
+    \item Docker Compose com PostgreSQL 16.
+\end{itemize}
+
+A entidade implementada e \texttt{User}, mapeada para a tabela \texttt{users}, com os campos \texttt{id}, \texttt{nome}, \texttt{email}, \texttt{password}, \texttt{matricula} e \texttt{cargo}.
+
+Existe CRUD HTTP em \texttt{/NSS/users}:
+
+\begin{tabularx}{\textwidth}{@{}L{2.2cm}L{4.2cm}Y@{}}
+\toprule
+\textbf{Metodo} & \textbf{Rota} & \textbf{Situacao} \\
+\midrule
+POST & \texttt{/NSS/users} & cria usuario e codifica senha \\
+GET & \texttt{/NSS/users} & lista todos os usuarios \\
+GET & \texttt{/NSS/users/\{id\}} & busca usuario por id \\
+PUT & \texttt{/NSS/users/\{id\}} & existe, mas atualmente atualiza apenas a senha \\
+DELETE & \texttt{/NSS/users/\{id\}} & remove usuario por id \\
+\bottomrule
+\end{tabularx}
+
+\subsection{O que ainda falta para ser o componente Java descrito na arquitetura}
+
+Ainda nao foram encontrados no projeto analisado:
+
+\begin{itemize}[leftmargin=*]
+    \item entidades e repositories para os agregados epidemiologicos;
+    \item controllers/endpoints para doencas, resumo ou heatmap;
+    \item migrations Flyway para criar o schema;
+    \item fluxo de login, emissao/validacao de token e autorizacao por papel;
+    \item contrato padronizado de erros;
+    \item paginacao para recursos que possam crescer;
+    \item configuracao CORS para o front-end;
+    \item especificacao OpenAPI do contrato publico;
+    \item testes de integracao do banco e da API epidemiologica.
+\end{itemize}
+
+Portanto, a resposta arquitetural e: \textbf{sim, ele parece ser o embriao do componente Java definido em \texttt{nss-deployment}, mas ainda nao cumpre a maior parte das responsabilidades previstas para esse componente}.
+
+\subsection{Problemas tecnicos que devem ser corrigidos no backend}
+
+\begin{warningbox}
+O arquivo \texttt{src/main/resources/application.yml} contem, no estado analisado, uma copia do Docker Compose em vez de configuracao Spring. O \texttt{compose.yaml} da raiz e o lugar correto para a definicao dos servicos. O \texttt{application.yml} precisa conter propriedades da aplicacao, datasource, JPA/Flyway, seguranca e demais configuracoes do Spring.
+\end{warningbox}
+
+Tambem devem ser revisados:
+
+\begin{itemize}[leftmargin=*]
+    \item o \texttt{PUT} de usuario, que ignora nome, email, cargo e matricula;
+    \item o processamento de anotacoes do MapStruct no Maven, pois o \texttt{maven-compiler-plugin} explicita apenas Lombok em \texttt{annotationProcessorPaths};
+    \item a dependencia exigida pelo encoder Argon2 em runtime;
+    \item o comportamento default do Spring Security. Ainda falta uma configuracao explicita de rotas publicas e protegidas;
+    \item tratamento de duplicidade e de \texttt{RuntimeException} via \texttt{@ControllerAdvice};
+    \item migrations Flyway, pois a dependencia existe, mas nao ha scripts de migracao no projeto analisado.
+\end{itemize}
+
+\section{Contrato de dados PostgreSQL para a V1}
+
+Esta secao define o schema minimo esperado depois da refatoracao do pipeline Python. Ele e deliberadamente pequeno para permitir integracao rapida.
+
+\subsection{Tabela existente: users}
+
+O Java ja modela a tabela abaixo conceitualmente:
+
+\begin{tabularx}{\textwidth}{@{}L{3.2cm}L{3.1cm}Y@{}}
+\toprule
+\textbf{Campo} & \textbf{Tipo sugerido} & \textbf{Regra} \\
+\midrule
+id & BIGSERIAL & chave primaria \\
+nome & VARCHAR(100) & obrigatorio \\
+email & VARCHAR(254) & obrigatorio e unico \\
+password & VARCHAR(255) & hash da senha; nunca retornar no DTO \\
+matricula & VARCHAR(11) & obrigatoria, numerica e unica \\
+cargo & VARCHAR(30) & obrigatorio \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Tabela proposta: \texttt{sinan\_case\_aggregate}}
+
+O Gold atual do pipeline ja produz os campos essenciais \texttt{disease}, \texttt{year}, \texttt{month}, \texttt{cd\_uf}, \texttt{nm\_uf}, \texttt{cd\_mun}, \texttt{nm\_mun} e \texttt{cases\_total}. A V1 do PostgreSQL deve preservar exatamente esse nivel de agregacao, sem adicionar dimensoes opcionais por enquanto.
+
+\begin{lstlisting}[language=SQL]
+CREATE TABLE sinan_case_aggregate (
+    id            BIGSERIAL PRIMARY KEY,
+    disease       VARCHAR(20)  NOT NULL,
+    source_year   SMALLINT     NOT NULL,
+    year          SMALLINT     NOT NULL CHECK (year >= 2000),
+    month         SMALLINT     NOT NULL CHECK (month BETWEEN 1 AND 12),
+    cd_uf         CHAR(2)      NOT NULL,
+    nm_uf         VARCHAR(100) NOT NULL,
+    cd_mun        CHAR(7)      NOT NULL,
+    nm_mun        VARCHAR(150) NOT NULL,
+    cases_total   INTEGER      NOT NULL CHECK (cases_total >= 0),
+    batch_id      VARCHAR(32)  NOT NULL,
+    ingested_at   TIMESTAMPTZ  NOT NULL,
+
+    CONSTRAINT uq_sinan_case_aggregate_v1 UNIQUE
+      (disease, source_year, year, month, cd_uf, cd_mun)
+);
+
+CREATE INDEX idx_sinan_case_filter
+ON sinan_case_aggregate (disease, year, month, cd_uf);
+\end{lstlisting}
+
+\begin{decision}
+Na V1, o pipeline deve persistir apenas o agregado geografico mensal, sem agrupar por sexo, classificacao final, evolucao, semana epidemiologica ou ano de nascimento. Essas dimensoes ja sao candidatas existentes no pipeline, mas devem entrar somente em uma evolucao do contrato, pois alteram a chave e a granularidade da tabela.
+\end{decision}
+
+\subsection{Correspondencia com o pipeline atual}
+
+O pipeline atual possui suporte a colunas agrupaveis adicionais como \texttt{SEM\_NOT}, \texttt{CLASSI\_FIN}, \texttt{EVOLUCAO}, \texttt{CS\_SEXO} e \texttt{ANO\_NASC}. Para a demonstracao, o front-end nao deve depender delas.
+
+A lista de municipios codificada no Gold atual esta limitada a quatro municipios do Rio de Janeiro: Campos dos Goytacazes, Sao Joao da Barra, Itaperuna e Macae. Isso e suficiente para o prototipo, mas deve ser tratado como limitacao temporaria do pipeline, nao como regra definitiva do sistema.
+
+\section{Contrato minimo da API Java para o front-end}
+
+A API definitiva ainda precisa ser implementada. Para evitar acoplamento com o CRUD de usuarios e para permitir evolucao, a V1 deve usar prefixo versionado \texttt{/api/v1}.
+
+\subsection{Health check}
+
+\begin{lstlisting}
+GET /api/v1/health
+
+200 OK
+{
+  "status": "ok"
+}
+\end{lstlisting}
+
+\subsection{Doencas disponiveis}
+
+\begin{lstlisting}
+GET /api/v1/diseases
+
+200 OK
+{
+  "items": ["DENG"]
+}
+\end{lstlisting}
+
+Na V1, a lista pode ser derivada dos valores distintos de \texttt{disease} na tabela de agregados. Nao e necessario criar uma tabela de catalogo de doencas apenas para a demonstracao.
+
+\subsection{Agregado municipal}
+
+\begin{lstlisting}
+GET /api/v1/epidemiology/municipalities?disease=DENG&year=2026&month=1
+
+200 OK
+{
+  "disease": "DENG",
+  "year": 2026,
+  "month": 1,
+  "items": [
+    {
+      "cdUf": "33",
+      "nmUf": "Rio de Janeiro",
+      "cdMun": "3301009",
+      "nmMun": "Campos dos Goytacazes",
+      "casesTotal": 123
+    }
+  ]
+}
+\end{lstlisting}
+
+Esse unico endpoint ja permite ao front calcular total de casos, municipio com maior numero de notificacoes, ranking e intensidade do heatmap. Endpoints adicionais devem ser criados somente quando houver uma necessidade real da interface.
+
+\section{Arquitetura do front-end}
+
+\subsection{Stack}
+
+Para a V1, utilizar:
+
+\begin{itemize}[leftmargin=*]
+    \item React;
+    \item TypeScript com \texttt{strict} habilitado;
+    \item Vite;
+    \item Tailwind CSS;
+    \item TanStack Query para estado de servidor, cache, loading e retry;
+    \item Fetch API nativa como cliente HTTP.
+\end{itemize}
+
+Evitar nesta fase Redux, Zustand, Next.js, bibliotecas de formularios, design systems extensos e outras dependencias sem necessidade demonstrada.
+
+\subsection{Estrutura de pastas}
+
+\begin{lstlisting}
+src/
+|-- app/
+|   |-- App.tsx
+|   `-- providers.tsx
+|-- api/
+|   |-- http.ts
+|   `-- epidemiology.ts
+|-- features/
+|   `-- dashboard/
+|       |-- DashboardPage.tsx
+|       |-- components/
+|       `-- hooks/
+|-- components/
+|   `-- ui/
+|-- data/
+|   |-- dataSource.ts
+|   |-- apiDataSource.ts
+|   `-- mockDataSource.ts
+|-- mocks/
+|   `-- epidemiology.ts
+|-- types/
+|   `-- epidemiology.ts
+|-- index.css
+`-- main.tsx
+\end{lstlisting}
+
+\subsection{Abstracao de fonte de dados}
+
+A interface visual nao deve saber se os dados vieram do mock ou do Java.
+
+\begin{lstlisting}
+interface EpidemiologyDataSource {
+  listDiseases(): Promise<string[]>;
+  getMunicipalityCases(filters: {
+    disease: string;
+    year: number;
+    month?: number;
+  }): Promise<MunicipalityCasesResponse>;
+}
+\end{lstlisting}
+
+O modo e escolhido por variavel de ambiente:
+
+\begin{lstlisting}
+VITE_API_BASE_URL=http://localhost:8080
+VITE_USE_MOCKS=true
+\end{lstlisting}
+
+Quando a API Java estiver pronta, basta mudar \texttt{VITE\_USE\_MOCKS=false}. Os componentes da dashboard nao devem ser alterados para essa troca.
+
+\section{Tela unica da V1}
+
+\subsection{Layout}
+
+A pagina inicial deve conter, nesta ordem:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Header}: nome do NSS, referencia a UENF e indicador discreto de fonte de dados (\texttt{DEMO} quando mockado);
+    \item \textbf{Filtros}: doenca, ano e mes;
+    \item \textbf{KPIs}: total de casos, municipio com maior numero de casos e quantidade de municipios com registros;
+    \item \textbf{Visualizacao geografica}: painel de heatmap/mapa municipal;
+    \item \textbf{Ranking}: tabela com municipio e total de casos.
+\end{enumerate}
+
+\subsection{Mapa na entrega de curto prazo}
+
+O mapa nao deve bloquear a V1. A prioridade e a dashboard funcionar de ponta a ponta.
+
+Ordem de preferencia:
+
+\begin{enumerate}[leftmargin=*]
+    \item se houver GeoJSON municipal confiavel ja disponivel, usar mapa simples com intensidade por \texttt{casesTotal};
+    \item caso contrario, implementar um painel visual de heatmap/ranking com os quatro municipios e deixar a interface do componente preparada para receber geometria depois;
+    \item nao gastar a entrega com cartografia completa do Brasil.
+\end{enumerate}
+
+\subsection{Estados obrigatorios}
+
+Toda consulta deve possuir:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{loading}: skeleton ou placeholder sem layout shift importante;
+    \item \textbf{error}: mensagem curta e botao para tentar novamente;
+    \item \textbf{empty}: mensagem informando que nao ha dados para os filtros;
+    \item \textbf{success}: renderizacao dos indicadores e resultados.
+\end{itemize}
+
+\section{Mock da demonstracao}
+
+O mock deve usar o mesmo formato da futura resposta Java. Um conjunto pequeno e suficiente:
+
+\begin{lstlisting}
+DENG / 2026 / janeiro
+- Campos dos Goytacazes: 120
+- Macae: 85
+- Itaperuna: 42
+- Sao Joao da Barra: 18
+\end{lstlisting}
+
+Os valores sao apenas dados sinteticos de demonstracao e nunca devem ser apresentados como estatistica epidemiologica real.
+
+\section{Escopo explicitamente fora da V1}
+
+Para proteger a entrega de curto prazo, o Codex nao deve implementar agora:
+
+\begin{itemize}[leftmargin=*]
+    \item login, cadastro, recuperacao de senha ou RBAC;
+    \item tela CRUD de usuarios;
+    \item consumo direto do FastAPI antigo;
+    \item acesso direto ao PostgreSQL;
+    \item filtros por sexo, classificacao, evolucao ou idade;
+    \item exportacao PDF/CSV;
+    \item notificacoes em tempo real;
+    \item WebSocket;
+    \item SSR/Next.js;
+    \item dashboard builder;
+    \item cobertura de testes extensa.
+\end{itemize}
+
+\section{Ordem de implementacao recomendada ao Codex}
+
+\begin{enumerate}[leftmargin=*]
+    \item inicializar Vite + React + TypeScript;
+    \item configurar Tailwind e a estrutura de pastas;
+    \item criar tipos TypeScript do contrato epidemiologico;
+    \item criar \texttt{EpidemiologyDataSource};
+    \item implementar \texttt{mockDataSource};
+    \item configurar TanStack Query;
+    \item construir filtros e KPIs;
+    \item construir ranking municipal;
+    \item construir o painel geografico sem bloquear a entrega;
+    \item implementar \texttt{apiDataSource};
+    \item adicionar estados loading/error/empty;
+    \item validar \texttt{npm run build} e \texttt{npm run lint}.
+\end{enumerate}
+
+\begin{decision}
+A V1 e considerada pronta para demonstracao mesmo que a API Java epidemiologica ainda nao esteja concluida, desde que a UI funcione com mock, o contrato esteja tipado e a troca para a API real dependa apenas de configuracao e da implementacao do adapter HTTP.
+\end{decision}
+
+\section{Criterios de aceite da V1}
+
+\begin{tabularx}{\textwidth}{@{}L{5cm}Y@{}}
+\toprule
+\textbf{Criterio} & \textbf{Aceite} \\
+\midrule
+Build & \texttt{npm run build} termina com sucesso \\
+Lint & sem erros bloqueadores \\
+Responsividade & dashboard utilizavel em desktop e celular \\
+Filtros & alteram os dados exibidos \\
+Dados & mock e API obedecem aos mesmos tipos \\
+Estados & loading, error, empty e success existem \\
+Acoplamento & nenhum componente visual chama \texttt{fetch} diretamente \\
+Arquitetura & navegador conversa apenas com Java quando o modo real estiver ativo \\
+Entrega & uma unica dashboard coerente e apresentavel \\
+\bottomrule
+\end{tabularx}
+
+\section{Evolucao posterior}
+
+Depois da demonstracao, a sequencia recomendada e:
+
+\begin{enumerate}[leftmargin=*]
+    \item finalizar a persistencia Gold do Python no PostgreSQL;
+    \item implementar no Java repository/service/controller epidemiologico;
+    \item adicionar OpenAPI e estabilizar os DTOs;
+    \item integrar o front com a API Java real;
+    \item implementar autenticacao e autorizacao no Java e, somente depois, a experiencia de login no front;
+    \item expandir dimensoes epidemiologicas apenas com contrato SQL e API versionados.
+\end{enumerate}
+
+\section{Resumo executivo}
+
+O Java atual e uma base valida para o backend principal, pois ja adota Spring Boot, JPA, PostgreSQL, seguranca e organizacao em camadas. Entretanto, no estado analisado, ele ainda e majoritariamente um CRUD de usuarios e nao oferece a API epidemiologica prevista pela arquitetura do NSS.
+
+Para a demonstracao imediata, o front-end deve ser independente desse atraso: React + TypeScript + Vite + Tailwind + TanStack Query, uma unica dashboard e um adapter de dados intercambiavel entre mock e Java. O schema SQL minimo proposto espelha o Gold que o pipeline ja produz e evita introduzir dimensoes adicionais antes de existir necessidade de interface.
+
+Essa abordagem entrega algo visivel rapidamente e, ao mesmo tempo, mantem a direcao arquitetural descrita no \texttt{nss-deployment}.
+
+\end{document}
