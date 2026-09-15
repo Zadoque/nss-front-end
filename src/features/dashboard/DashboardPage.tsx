@@ -53,6 +53,7 @@ export function DashboardPage() {
       ? "4 municípios com cobertura nesta V1. Selecione um município para consultar."
       : "Explore o Sudeste e o Rio de Janeiro. Cobertura parcial, sem total agregado.";
   const panel = {
+    municipal,
     filters,
     onChange: setFilters,
     diseases: diseases.data ?? [],

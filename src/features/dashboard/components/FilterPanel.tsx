@@ -11,6 +11,7 @@ export type FilterPanelProps = {
   selectionName: string;
   selectionInfo: string;
   demo: boolean;
+  municipal: boolean;
 };
 const months = [
   "Janeiro",
@@ -27,6 +28,7 @@ const months = [
   "Dezembro",
 ];
 export function FilterPanel({
+  municipal,
   filters,
   onChange,
   diseases,
@@ -106,7 +108,7 @@ export function FilterPanel({
         <h3>{selectionName}</h3>
         <p>{selectionInfo}</p>
       </section>
-      <MapLegend />
+      <MapLegend municipal={municipal} />
       {demo && (
         <p className="demo-note">
           <strong>DEMO</strong> Dados sintéticos para demonstração. Não são
