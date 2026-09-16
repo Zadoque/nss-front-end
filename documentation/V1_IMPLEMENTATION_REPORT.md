@@ -91,5 +91,3 @@ O commit deste relatório e do README aparece em seguida no histórico.
 ## Estado para próxima etapa
 
 **V1 pronta para demonstração em modo DEMO**, com as limitações declaradas acima. Execute `npm run dev` e mantenha `VITE_USE_MOCKS=true`. Para integração real, disponibilize o contrato Java documentado, configure CORS e mude as variáveis de ambiente.
-
-Não foi feito push, merge ou deploy. O arquivo de instruções `v1_implementation.md`, que já estava não rastreado no início, foi preservado sem alterações.
