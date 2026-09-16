@@ -10,6 +10,7 @@ import {
 import { useMapNavigation } from "./hooks/useMapNavigation";
 import { GeographicMap } from "./components/GeographicMap";
 import { GeographyBreadcrumb } from "./components/GeographyBreadcrumb";
+import { GeographySelector } from "./components/GeographySelector";
 import { FilterPanel } from "./components/FilterPanel";
 import { FilterDrawer } from "./components/FilterDrawer";
 import { MunicipalityRanking } from "./components/MunicipalityRanking";
@@ -79,6 +80,7 @@ export function DashboardPage() {
         {isDemo && <span className="badge">DEMO</span>}
       </header>
       <main>
+        <a className="back-home" href="/">← Página inicial</a>
         <div className="page-intro">
           <div className="section-label">TERRITÓRIO E SAÚDE</div>
           <h1>Um olhar sobre o território</h1>
@@ -87,6 +89,7 @@ export function DashboardPage() {
           </p>
         </div>
         <GeographyBreadcrumb level={mapLevel} navigate={navigate} />
+        <GeographySelector key={mapLevel} navigation={navigation} />
         <div className="dashboard-grid">
           <section className="card map-card" aria-label="Exploração geográfica">
             <div className="map-heading">

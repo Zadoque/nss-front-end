@@ -1,26 +1,58 @@
 import { useState } from "react";
 import { demoCoverage } from "../../../data/coverage";
 import type { GeographySelection, MapLevel } from "../../../types/epidemiology";
+
+type Navigation = {
+  mapLevel: MapLevel;
+  selectedGeography: GeographySelection | null;
+};
 export function useMapNavigation() {
-  const [mapLevel, setMapLevel] = useState<MapLevel>("BRAZIL_REGIONS");
-  const [selectedGeography, setSelectedGeography] =
-    useState<GeographySelection | null>(null);
-  function navigate(level: MapLevel) {
-    setMapLevel(level);
-    setSelectedGeography(null);
+  const [navigation, setNavigation] = useState<Navigation>({
+    mapLevel: "BRAZIL_REGIONS",
+    selectedGeography: null,
+  });
+  function navigate(mapLevel: MapLevel) {
+    setNavigation({ mapLevel, selectedGeography: null });
   }
   function select(selection: GeographySelection) {
-    setSelectedGeography(selection);
-    if (
-      selection.level === "region" &&
-      demoCoverage.drilldownEnabled.regions.includes(selection.code)
-    )
-      navigate("SOUTHEAST_STATES");
-    if (
-      selection.level === "state" &&
-      demoCoverage.drilldownEnabled.states.includes(selection.code)
-    )
-      navigate("RJ_MUNICIPALITIES");
+    if (selection.level === "region") {
+      setNavigation({
+        mapLevel: demoCoverage.drilldownEnabled.regions.includes(selection.code)
+          ? "SOUTHEAST_STATES"
+          : "BRAZIL_REGIONS",
+        selectedGeography: demoCoverage.drilldownEnabled.regions.includes(
+          selection.code,
+        )
+          ? null
+          : selection,
+      });
+    } else if (selection.level === "state") {
+      setNavigation({
+        mapLevel: demoCoverage.drilldownEnabled.states.includes(selection.code)
+          ? "RJ_MUNICIPALITIES"
+          : "SOUTHEAST_STATES",
+        selectedGeography: demoCoverage.drilldownEnabled.states.includes(
+          selection.code,
+        )
+          ? null
+          : selection,
+      });
+    } else {
+      setNavigation({
+        mapLevel: "RJ_MUNICIPALITIES",
+        selectedGeography: selection,
+      });
+    }
   }
-  return { mapLevel, selectedGeography, navigate, select };
+  const region =
+    navigation.mapLevel !== "BRAZIL_REGIONS"
+      ? "SE"
+      : (navigation.selectedGeography?.code ?? "");
+  const state =
+    navigation.mapLevel === "RJ_MUNICIPALITIES"
+      ? "RJ"
+      : navigation.selectedGeography?.level === "state"
+        ? navigation.selectedGeography.code
+        : "";
+  return { ...navigation, region, state, navigate, select };
 }

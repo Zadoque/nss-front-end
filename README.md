@@ -77,3 +77,19 @@ Os testes usam Playwright. Instale seu Chromium com `npx playwright install chro
 Para servir o build: `npm run preview`. Para publicar, sirva `dist/` como aplicação estática.
 
 A documentação LaTeX não foi alterada. Instruções específicas: [COMPILACAO_NIX_NSS_FRONT_END.md](COMPILACAO_NIX_NSS_FRONT_END.md).
+
+## Homepage e navegação da V1
+
+`/` apresenta a missão institucional do NSS, iniciativa da UENF em fase inicial, seus objetivos futuros e as funcionalidades atuais em seções distintas. Informa a fonte inicial SINAN/PySUS da pipeline, a parceria em estabelecimento com a Prefeitura de Campos dos Goytacazes e a localização no Hospital Veterinário Darcy Ribeiro. O modo demo continua explicitamente sintético; objetivos de contingência, logística e integração de saúde humana, animal e ambiental não são anunciados como funcionalidades prontas.
+
+**Explorar mapa** abre `/mapa`; **Página inicial** retorna à homepage. Uma navegação mínima com History API preserva links reais, cliques modificados e voltar/avançar do navegador, sem dependência adicional. Ao mudar de página, o título e o foco no heading são atualizados. O servidor de produção precisa redirecionar caminhos da SPA (incluindo `/mapa`) para `index.html`. Trocar de página reinicia a navegação e os filtros do dashboard; o cache TanStack Query permanece na aplicação.
+
+`useMapNavigation` mantém um único objeto com nível e seleção. Região e estado são derivados desse objeto e do caminho fixo da V1. Mapa, ranking e seletores chamam `select`; breadcrumb e opções de retorno chamam `navigate`, que limpa a seleção. Assim, retornar ao Brasil também limpa estado e município. Regiões/estados sem drill-down continuam selecionáveis no mapa para consultar o aviso, e aparecem indisponíveis para navegação nos selects.
+
+O seletor aparece acima do mapa em todas as larguras, com controles empilhados abaixo de 768 px e alvos de 48 px. Para os 92 municípios da geometria do RJ, foi adotada pesquisa sem distinção de acentos junto a um select nativo: preserva a interação de teclado, leitor de tela e seletor do sistema no celular, sem implementar um combobox personalizado. O texto de pesquisa é apenas um filtro de opções, nunca estado geográfico; a opção atualmente selecionada continua disponível durante a busca. Carregamento e falha da cartografia têm feedback e nova tentativa, usando o mesmo cache do mapa.
+
+A geometria completa não amplia a cobertura: somente Sudeste/RJ permitem drill-down e somente os quatro municípios documentados possuem cobertura epidemiológica. Ausência de registros não equivale a zero. Contratos, transporte e responsabilidades de pipeline/backend permanecem inalterados.
+
+Os testes adicionais cobrem homepage, histórico, seletores → mapa, mapa/ranking → seletores, breadcrumb, pesquisa sem acentos, teclado, municípios sem cobertura e ausência de overflow no smartphone.
+
+Validação desta ampliação: `npm ci`, `npm run lint` e `npm run build` concluídos; suíte completa com **11 testes aprovados**. Neste ambiente NixOS, `npm test` precisou de execução fora do sandbox para abrir as portas 5173/5174 e de `CHROMIUM_PATH` apontando para o Chromium 152 instalado em `/nix/store` (o navegador padrão do Playwright não estava instalado). Nenhum backend externo foi necessário: os testes da API interceptam HTTP com respostas controladas.
